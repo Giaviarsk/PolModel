@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>American Political Landscape Model</title>
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body class="min-h-screen bg-gray-50 text-gray-900">
+  <header class="bg-indigo-700 text-white py-4 shadow-md">
+    <h1 class="text-center text-3xl font-bold">American Political Landscape</h1>
+    <p class="text-center text-sm mt-1">Interactive graph of U.S. ideological factions</p>
+  </header>
+
+  <div class="flex flex-col lg:flex-row max-w-7xl mx-auto p-4 gap-6">
+    <!-- Sidebar: Add / Edit Ideology -->
+    <aside class="lg:w-1/3 bg-white rounded-2xl shadow-lg p-6">
+      <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+        <span id="formTitle">Add Custom Ideology</span>
+      </h2>
+      <form id="ideologyForm" class="space-y-4">
+        <input type="hidden" id="editMode" value="false" />
+        <div>
+          <label class="block text-sm font-medium">Umbrella</label>
+          <select id="umbrellaSelect" class="mt-1 w-full rounded-md border-gray-300">
+            <option value="democratic">Democratic</option>
+            <option value="republican">Republican</option>
+            <option value="libertarian">Libertarian</option>
+            <option value="independent">Independent</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium">Name</label>
+          <input id="ideologyName" required class="mt-1 w-full rounded-md border-gray-300" placeholder="e.g., Techno‑Progressives" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium">Snapshot</label>
+          <textarea id="ideologyDesc" rows="2" required class="mt-1 w-full rounded-md border-gray-300" placeholder="One‑sentence description"></textarea>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium">Economic (−1 Left → 1 Right)</label>
+            <input id="ideologyX" type="number" step="0.1" min="-1" max="1" class="mt-1 w-full rounded-md border-gray-300" placeholder="0" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium">Civil (−1 Lib → 1 Auth)</label>
+            <input id="ideologyY" type="number" step="0.1" min="-1" max="1" class="mt-1 w-full rounded-md border-gray-300" placeholder="0" />
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <button id="submitBtn" class="flex-1 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold">Add Ideology</button>
+          <button id="cancelEdit" type="button" class="hidden flex-1 py-2 rounded-xl bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold">Cancel</button>
+        </div>
+      </form>
+    </aside>
+
+    <!-- Columns -->
+    <main class="flex-1 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+      <section id="democratic" class="bg-white rounded-2xl shadow-lg p-6">
+        <h2 class="text-2xl font-bold text-blue-600 mb-2">Democratic</h2>
+        <ul id="democraticList" class="space-y-2"></ul>
+      </section>
+      <section id="republican" class="bg-white rounded-2xl shadow-lg p-6">
+        <h2 class="text-2xl font-bold text-red-600 mb-2">Republican</h2>
+        <ul id="republicanList" class="space-y-2"></ul>
+      </section>
+      <section id="libertarian" class="bg-white rounded-2xl shadow-lg p-6">
+        <h2 class="text-2xl font-bold text-yellow-500 mb-2">Libertarian</h2>
+        <ul id="libertarianList" class="space-y-2"></ul>
+      </section>
+      <section id="independent" class="bg-white rounded-2xl shadow-lg p-6">
+        <h2 class="text-2xl font-bold text-green-600 mb-2">Independent</h2>
+        <ul id="independentList" class="space-y-2"></ul>
+      </section>
+    </main>
+  </div>
+
+  <!-- Scatter Plot -->
+  <div class="max-w-4xl mx-auto my-12 bg-white rounded-2xl shadow-lg p-6">
+    <h2 class="text-xl font-semibold mb-4">Ideology Map (Economic ↔ Civil)</h2>
+    <canvas id="ideologyChart" height="420"></canvas>
+  </div>
+
+  <script>
+    // ---------------- Data Model ------------------------------------------
+    const data = {
+      democratic: [
+        { id: crypto.randomUUID(), name: "Congressional Progressive Caucus", desc: "Left‑wing populists, social‑democratic priorities", x: -0.7, y: 0.3 },
+        { id: crypto.randomUUID(), name: "New Democrat Coalition", desc: "Centrist, pro‑business pragmatists", x: -0.1, y: 0.1 },
+        { id: crypto.randomUUID(), name: "Blue Dog Coalition", desc: "Fiscally conservative, culturally moderate", x: 0.1, y: 0.2 },
+      ],
+      republican: [
+        { id: crypto.randomUUID(), name: "Freedom Caucus", desc: "Hard‑right, anti‑spending, populist", x: 0.7, y: 0.4 },
+        { id: crypto.randomUUID(), name: "Main Street Caucus", desc: "Business‑friendly moderates", x: 0.4, y: 0.1 },
+        { id: crypto.randomUUID(), name: "Green Conservatives", desc: "Free‑market environmentalists", x: 0.3, y: -0.1 },
+      ],
+      libertarian: [
+        { id: crypto.randomUUID(), name: "Mises Caucus", desc: "Decentralist, Austrian‑economics", x: 0.6, y: -0.7 },
+        { id: crypto.randomUUID(), name: "Left‑Libertarians", desc: "Anti‑corporate, pro‑worker self‑management", x: -0.5, y: -0.6 },
+      ],
+      independent: [
+        { id: crypto.randomUUID(), name: "Forward Party", desc: "Electoral‑reform centrism", x: 0, y: 0 },
+        { id: crypto.randomUUID(), name: "Green Party USA", desc: "Eco‑socialist grassroots democracy", x: -0.8, y: 0.5 },
+        { id: crypto.randomUUID(), name: "Constitution Party", desc: "Paleoconservative, Christian nationalist", x: 0.8, y: 0.6 },
+      ]
+    };
+
+    // ---------------- Utilities ------------------------------------------
+    function getPointStyle(key) {
+      return {
+        democratic: "rgba(37,99,235,0.8)",
+        republican: "rgba(220,38,38,0.8)",
+        libertarian: "rgba(234,179,8,0.8)",
+        independent: "rgba(16,185,129,0.8)",
+      }[key];
+    }
+
+    // ---------------- Render Lists ---------------------------------------
+    function renderLists() {
+      Object.keys(data).forEach(key => {
+        const ul = document.getElementById(`${key}List`);
+        ul.innerHTML = "";
+        data[key].forEach(item => {
+          const li = document.createElement("li");
+          li.dataset.id = item.id;
+          li.dataset.umbrella = key;
+          li.className = "cursor-pointer pl-4 border-l-4 border-gray-200 hover:border-indigo-400";
+          li.innerHTML = `<span class='font-semibold'>${item.name}</span><br><span class='text-sm text-gray-600'>${item.desc}</span>`;
+          ul.appendChild(li);
+        });
+      });
+    }
+
+    // ---------------- Chart Helpers --------------------------------------
+    function buildDatasets() {
+      return Object.keys(data).map(key => ({
+        label: key.charAt(0).toUpperCase() + key.slice(1),
+        data: data[key].map(pt => ({ x: pt.x, y: pt.y, r: 6, id: pt.id, umbrella: key, name: pt.name })),
+        backgroundColor: getPointStyle(key),
+      }));
+    }
+
+    let chart;
+    function initChart() {
+      const ctx = document.getElementById("ideologyChart").getContext("2d");
+      chart = new Chart(ctx, {
+        type: "bubble",
+        data: { datasets: buildDatasets() },
+        options: {
+          onClick: handleChartClick,
+          scales: {
+            x: { title: { display: true, text: "Economic: −1 Left  |  1 Right" }, min: -1, max: 1 },
+            y: { title: { display: true, text: "Civil Liberties: −1 Lib  |  1 Auth" }, min: -1, max: 1 },
+          },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: ctx => `${ctx.raw.name}: (${ctx.raw.x.toFixed(2)}, ${ctx.raw.y.toFixed(2)})`
+              }
+            },
+            legend: { position: "bottom" },
+          },
+        },
+      });
+    }
+
+    function updateChart() {
+      chart.data.datasets = buildDatasets();
+      chart.update();
+    }
+
+    // ---------------- Form Logic -----------------------------------------
+    const form = document.getElementById("ideologyForm");
+    let editing = null; // {umbrella, index}
+
+    form.addEventListener("submit", e => {
+      e.preventDefault();
+      const umbrella = document.getElementById("umbrellaSelect").value;
+      const name = document.getElementById("ideologyName").value.trim();
+      const desc = document.getElementById("ideologyDesc").value.trim();
+      let xVal = parseFloat(document.getElementById("ideologyX").value);
+      let yVal = parseFloat(document.getElementById("ideologyY").value);
+      if (!name || !desc) return;
+      if (isNaN(xVal)) xVal = (Math.random() - 0.5) * 0.6;
+      if (isNaN(yVal)) yVal = (Math.random() - 0.5) * 0.6;
+      xVal = Math.max(-1, Math.min(1, xVal));
+      yVal = Math.max(-1, Math.min(1, yVal));
+
+      if (editing) {
+        // update existing
+        const item = data[editing.umbrella][editing.index];
+        item.name = name;
+        item.desc = desc;
+        item.x = xVal;
+        item.y = yVal;
+        // if umbrella changed, move item
+        if (editing.umbrella !== umbrella) {
+          data[editing.umbrella].splice(editing.index, 1);
+          item.umbrella = umbrella;
+          data[umbrella].push(item);
+        }
+        exitEditMode();
+      } else {
+        // add new
+        data[umbrella].push({ id: crypto.randomUUID(), name, desc, x: xVal, y: yVal });
+      }
+
+      form.reset();
+      renderLists();
+      updateChart();
+    });
+
+    document.getElementById("cancelEdit").addEventListener("click", () => {
+      exitEditMode();
+      form.reset();
+    });
+
+    function enterEditMode(umbrella, index) {
+      editing = { umbrella, index };
+      const item = data[umbrella][index];
+      document.getElementById("formTitle").textContent = "Edit Ideology";
+      document.getElementById("submitBtn").textContent = "Save";
+      document.getElementById("cancelEdit").classList.remove("hidden");
+      document.getElementById("umbrellaSelect").value = umbrella;
+      document.getElementById("ideologyName").value = item.name;
+      document.getElementById("ideologyDesc").value = item.desc;
+      document.getElementById("ideologyX").value = item.x;
+      document.getElementById("ideologyY").value = item.y;
+    }
+
+    function exitEditMode() {
+      editing = null;
+      document.getElementById("formTitle").textContent = "Add Custom Ideology";
+      document.getElementById("submitBtn").textContent = "Add Ideology";
+      document.getElementById("cancelEdit").classList.add("hidden");
+    }
+
+    // ---------------- Event: List Click ----------------------------------
+    document.addEventListener("click", e => {
+      const li = e.target.closest("li[data-id]");
+      if (!li) return;
+      const umbrella = li.dataset.umbrella;
+      const id = li.dataset.id;
+      const index = data[umbrella].findIndex(i => i.id === id);
+      if (index > -1) enterEditMode(umbrella, index);
+    });
+
+    // ---------------- Event: Chart Click ---------------------------------
+    function handleChartClick(evt) {
+      const points = chart.getElementsAtEventForMode(evt, "nearest", { intersect: true }, true);
+      if (!points.length) return;
+      const pointData = points[0].element.$context.raw;
+      const umbrella = pointData.umbrella;
+      const id = pointData.id;
+      const index = data[umbrella].findIndex(i => i.id === id);
+      if (index > -1) enterEditMode(umbrella, index);
+    }
+
+    // ---------------- Init -------------------------------------------------
+    renderLists();
+    initChart();
+  </script>
+</body>
+</html>
